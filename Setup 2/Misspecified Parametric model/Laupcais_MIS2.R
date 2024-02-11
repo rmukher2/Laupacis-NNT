@@ -1,0 +1,116 @@
+##################################################################################################################
+
+#' @Description - Obtain the point estimates of nonparametric estimator of Laupacis' NNT and Wald-based, 
+#'                Delta based CI for Setup - II, when the parametric model is misspecified.
+
+#' @param treat a numeric vector of the treatment arm results
+#' @param control a numeric vector of the control arm results
+#' @param tau cut-off value
+#' @param I   number of iterations
+#' @param p_c sample proportion of success in the control arm
+#' @param p_t sample proportion of success in the treatment arm
+#' @param n_c number of observations in the control arm
+#' @param n_t number of observations in the treatment arm
+
+##################################################################################################################
+
+n <- 800
+I = 1000
+treat <- list(mode="vector",length=I)
+control <- list(mode="vector",length=I)
+p_t <- numeric(I)
+p_c <- numeric(I)
+tau = log(3)
+nntl <- list(mode="vector",length=I)
+nntl_fin <- list(mode="vector",length=I)
+diff <- numeric(I)
+
+sd.wald <- numeric(I)
+sd.delta <- numeric(I)
+
+cov1 <- numeric(I)
+cov2 <- numeric(I)
+ci_w <- vector("list", I)
+ci_d <- vector("list", I)
+ci_bs <- vector("list", I)
+Bias <- numeric(I)
+ntl.bs <- numeric(I)
+
+
+wald_diff <- numeric(I)
+delta_diff <- numeric(I)
+
+set.seed(123)
+for (i in 1:I){
+treat[[i]] <- rgamma(n,shape = 1.5, rate = 1)
+control[[i]] <- rgamma(3 * n,shape = 1.5, rate = 2)
+p_t[i]<- mean( treat[[i]]   > tau, na.rm = T )
+p_c[i]<- mean( control[[i]]   > tau, na.rm = T ) 
+
+## point est
+nntl[[i]]        = ifelse( 1 / ( p_t[[i]] - p_c[[i]] ) > 0,
+                         1 / ( p_t[[i]] - p_c[[i]] ),
+                         Inf )
+
+}
+
+nntl_fin <- unlist(nntl[is.finite(unlist(nntl))])
+
+sum(is.infinite(unlist(nntl_fin)))
+
+for (i in 1:I){
+  
+Bias <- nntl_fin - 3.22
+
+
+
+n_t <- length(treat[[i]])
+n_c <- length(control[[i]])
+
+##Wald's CI
+
+sd.wald[i]       = sqrt( p_t[i] * ( 1 - p_t[i] ) / n_t + p_c[i] * ( 1 - p_c[i] ) / n_c )
+
+
+ci_w[[i]]          =    c( max( 1 / (  p_t[i] - p_c[i] + qnorm(.975) * sd.wald[i] ), 1),
+                      ifelse( 1 / (  p_t[i] - p_c[i] - qnorm(.975) * sd.wald[i] ) > 0,
+                              1 / (  p_t[i] - p_c[i] - qnorm(.975) * sd.wald[i] ),
+                              Inf ))
+
+# DELTA's CI
+sd.delta[i]      = ( 1 / (p_t[i] - p_c[i]) ^ 2 ) * sqrt(   p_t[i] * (1 - p_t[i]) / n_t
+                                                           + p_c[i] * (1 - p_c[i]) / n_c )
+ci_d[[i]]          =  c(max( nntl[[i]] - qnorm(.975) * sd.delta[i], 1), nntl[[i]] + qnorm(.975) * sd.delta[i])
+
+###Length of CI
+wald_diff[i] <- ci_w[[i]][2] - ci_w[[i]][1]
+delta_diff[i] <- ci_d[[i]][2] - ci_d[[i]][1]
+#coverage
+cov1[i] <- ifelse(ci_w[[i]][1] <= 3.22 & ci_w[[i]][2] >= 3.22, 1, 0)
+cov2[i] <- ifelse(ci_d[[i]][1] <= 3.22 & ci_d[[i]][2] >= 3.22, 1, 0)
+
+}
+
+sum(is.infinite(unlist(nntl_fin)))
+
+
+est <- abs(mean(Bias))
+sd_est <- sd(nntl_fin)
+sd_est                                       # SD of the estimator
+RMSE <- sqrt(mean((nntl_fin - 3.22)^2))
+RMSE                                         # RMSE of the estimator
+bias_percent <- (est/sd_est)*100
+bias_percent                                 # Bias% of the estimator
+mean(Bias)                                   # Mean Bias of the estimator
+sum(is.na(delta_diff))
+median(wald_diff)                            # median of wald difference
+median(delta_diff[delta_diff != 'NaN'])      # median of Delta difference
+median(delta_diff)
+mean(cov1)                                   # Coverage of Wald's CI
+mean(cov2, na.rm = T )                       # Coverage of BS CI
+
+### output for boxplot##
+output <- cbind(n_t,n_c,nntl, wald_diff, delta_diff)
+write.csv(output, "F:/Output/Setup 2/Para Misspecified/NonParametric/Point Estimate/C3T_800.csv")
+
+
